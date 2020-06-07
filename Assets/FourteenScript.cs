@@ -1,7 +1,8 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using KModkit;
 
 public class FourteenScript : MonoBehaviour
 {
@@ -16,6 +17,7 @@ public class FourteenScript : MonoBehaviour
     public Renderer[] selrends;
     public Material[] bcols;
     public TextMesh stagenum;
+    public TextMesh buttontext;
 
     private static string[] exempt = null;
     private bool[][] seglist = new bool[36][]{new bool[14] { true, true, false, false, true, true, false, false, true, true, false, false, true, true },     //0
@@ -56,8 +58,10 @@ public class FourteenScript : MonoBehaviour
                                               new bool[14] { true, false, false, false, true, false, false, false, false, true, false, false, false, true } };//Z
     private bool[][] segDisplay = new bool[3][];
     private bool[][][] ansDisplay = new bool[2][][] { new bool[14][], new bool[14][] };
+    private List<int[]> stageDisplay = new List<int[]> { };
     private int buffer;
     private int stageCount;
+    private int stageRecount = -1;
     private int[] digits = new int[3];
     private int[] dtotals = new int[3];
     private bool pressable;
@@ -133,7 +137,16 @@ public class FourteenScript : MonoBehaviour
             StartCoroutine(SolveAnim());
         }
         else
+        {
+            if (bomb.GetIndicators().Count() == 1)
+                for (int i = 0; i < 3; i++)
+                    dtotals[i] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".IndexOf(bomb.GetIndicators().ToArray()[0][i].ToString());
+            else
+                for (int i = 0; i < 3; i++)
+                    dtotals[i] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".IndexOf(bomb.GetSerialNumber()[i].ToString());
+            Debug.LogFormat("[14 #{0}] The initial values are: {1}", moduleID, string.Join(", ", dtotals.Select((s, i) => "RGB"[i].ToString() + " = " +  s).ToArray()));
             GenerateStage();
+        }
     }
 
     void Update()
@@ -202,17 +215,8 @@ public class FourteenScript : MonoBehaviour
     {
         if (pressable && !moduleSolved)
         {
-            if (sel)
+            if (sel && !refresh)
             {
-                if (refresh)
-                {
-                    refresh = false;
-                    for (int i = 0; i < 14; i++)
-                    {
-                        ansDisplay[1][i] = new bool[3] { false, false, false };
-                        segrends[i].material = bcols[8];
-                    }
-                }
                 selectors[s].AddInteractionPunch(0.5f);
                 Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, transform);
                 selcol = s + 8;
@@ -225,56 +229,65 @@ public class FourteenScript : MonoBehaviour
                 {
                     segs[14].AddInteractionPunch(0.5f);
                     Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, transform);
-                    bool struck = false;
-                    for (int i = 0; i < 14; i++)
+                    if (ansDisplay[1].Select(x => x[0]).Contains(true) && ansDisplay[1].Select(x => x[1]).Contains(true) && ansDisplay[1].Select(x => x[2]).Contains(true))
                     {
-                        if (ansDisplay[0][i][0] == ansDisplay[1][i][0] && ansDisplay[0][i][1] == ansDisplay[1][i][1] && ansDisplay[0][i][2] == ansDisplay[1][i][2])
-                            segrends[i].material = bcols[10];
-                        else
+                        bool struck = false;
+                        for (int i = 0; i < 14; i++)
                         {
-                            segrends[i].material = bcols[12];
-                            if (!struck)
-                            {
-                                struck = true;
-                                GetComponent<KMBombModule>().HandleStrike();
-                            }
-                        }
-                    }
-                    if (!struck)
-                    {
-                        Audio.PlaySoundAtTransform("InputCorrect", transform);
-                        moduleSolved = true;
-                        StartCoroutine(SolveAnim());
-                    }
-                    else
-                    {
-                        int[] segcol = new int[14];
-                        string[] ansLCDs = new string[14];
-                        for (int i = 0; i < 3; i++)
-                            for (int j = 0; j < 14; j++)
-                            {
-                                if (ansDisplay[1][j][i])
-                                {
-                                    segcol[j] += (int)Mathf.Pow(2, 2 - i);
-                                }
-                                ansLCDs[j] = "KBGCRMYW"[segcol[j]].ToString();
-                            }
-                        string ansGrid = string.Empty;
-                        int lcdIndex = 0;
-                        for (int i = 0; i < 25; i++)
-                        {
-                            if (new int[] { 0, 1, 3, 4, 10, 12, 14, 20, 21, 23, 24 }.Contains(i))
-                                ansGrid += "-";
+                            if (ansDisplay[0][i][0] == ansDisplay[1][i][0] && ansDisplay[0][i][1] == ansDisplay[1][i][1] && ansDisplay[0][i][2] == ansDisplay[1][i][2])
+                                segrends[i].material = bcols[10];
                             else
                             {
-                                ansGrid += ansLCDs[lcdIndex];
-                                lcdIndex++;
+                                segrends[i].material = bcols[12];
+                                if (!struck)
+                                {
+                                    struck = true;
+                                    selrends[8].material = bcols[8];
+                                    selection = new bool[3] { false, false, false };
+                                    buttontext.text = "NE\nXT";
+                                    GetComponent<KMBombModule>().HandleStrike();
+                                }
                             }
-                            if (i % 5 == 4 && i != 24)
-                                ansGrid += "\n[14 #" + moduleID + "] ";
                         }
-                        Debug.LogFormat("[14 #{0}] Incorrect Submission:\n[14 #{0}] {1}", moduleID, ansGrid);
-                        refresh = true;
+                        if (!struck)
+                        {
+                            Audio.PlaySoundAtTransform("InputCorrect", transform);
+                            moduleSolved = true;
+                            selrends[8].material = bcols[8];
+                            StartCoroutine(SolveAnim());
+                        }
+                        else
+                        {
+                            int[] segcol = new int[14];
+                            string[] ansLCDs = new string[14];
+                            for (int i = 0; i < 3; i++)
+                                for (int j = 0; j < 14; j++)
+                                {
+                                    if (ansDisplay[1][j][i])
+                                    {
+                                        segcol[j] += (int)Mathf.Pow(2, 2 - i);
+                                    }
+                                    ansLCDs[j] = "KBGCRMYW"[segcol[j]].ToString();
+                                }
+                            for (int i = 0; i < 8; i++)
+                                selrends[i].material = bcols[0];
+                            string ansGrid = string.Empty;
+                            int lcdIndex = 0;
+                            for (int i = 0; i < 25; i++)
+                            {
+                                if (new int[] { 0, 1, 3, 4, 10, 12, 14, 20, 21, 23, 24 }.Contains(i))
+                                    ansGrid += "-";
+                                else
+                                {
+                                    ansGrid += ansLCDs[lcdIndex];
+                                    lcdIndex++;
+                                }
+                                if (i % 5 == 4 && i != 24)
+                                    ansGrid += "\n[14 #" + moduleID + "] ";
+                            }
+                            Debug.LogFormat("[14 #{0}] Incorrect Submission:\n[14 #{0}] {1}", moduleID, ansGrid);
+                            refresh = true;
+                        }
                     }
                 }
                 else
@@ -283,6 +296,30 @@ public class FourteenScript : MonoBehaviour
                     ansDisplay[1][s] = selection;
                     segrends[s].material = bcols[selcol];
                 }
+            }
+            else if(s == 14 && refresh)
+            {
+                segs[14].AddInteractionPunch(0.5f);
+                Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, transform);
+                if (stageRecount + 1 >= stageCount)
+                {
+                    refresh = false;
+                    stageRecount = -1;
+                    buttontext.text = "SUB\nMIT";
+                    for (int i = 0; i < 14; i++)
+                    {
+                        ansDisplay[1][i] = new bool[3] { false, false, false };
+                        segrends[i].material = bcols[8];
+                    }
+                    for (int i = 0; i < 8; i++)
+                        selrends[i].material = bcols[i];
+                }
+                else
+                {
+                    stageRecount++;
+                    for (int i = 0; i < 14; i++)
+                        segrends[i].material = bcols[stageDisplay[stageRecount][i] + 8];
+                }               
             }
         }
     }
@@ -307,7 +344,7 @@ public class FourteenScript : MonoBehaviour
                     dtotals[i] %= 36;
                     break;
                 case 2:
-                    Debug.LogFormat("[14 #{0}] At stage {1}, The digit shown on the {2} channel was {3} {5} ({4}). The G function outputs {6} + {4} = {7} ({8})", moduleID, stageCount, "RGB"[i], digits[i] < 0 ? "inverted" : "standard", digits[i], "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Mathf.Abs(digits[i])], dtotals[i], (Mathf.Abs(digits[i]) + dtotals[i]) % 36, ((Mathf.Abs(digits[i]) + dtotals[i]) % 36 < 0 ? "inverted " : "standard ") + "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Mathf.Abs((Mathf.Abs(digits[i]) + dtotals[i]) % 36)]);
+                    Debug.LogFormat("[14 #{0}] At stage {1}, The digit shown on the {2} channel was {3} {5} ({4}). The G function outputs {6} + {4} = {7} ({8})", moduleID, stageCount, "RGB"[i], digits[i] < 0 ? "inverted" : "standard", Mathf.Abs(digits[i]), "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Mathf.Abs(digits[i])], dtotals[i], (Mathf.Abs(digits[i]) + dtotals[i]) % 36, ((Mathf.Abs(digits[i]) + dtotals[i]) % 36 < 0 ? "inverted " : "standard ") + "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Mathf.Abs((Mathf.Abs(digits[i]) + dtotals[i]) % 36)]);
                     dtotals[i] += Mathf.Abs(digits[i]);
                     dtotals[i] %= 36;
                     break;
@@ -322,7 +359,7 @@ public class FourteenScript : MonoBehaviour
                     dtotals[i] %= 36;
                     break;
                 case 5:
-                    Debug.LogFormat("[14 #{0}] At stage {1}, The digit shown on the {2} channel was {3} {5} ({4}). The M function outputs {6} - {4} = {7} ({8})", moduleID, stageCount, "RGB"[i], digits[i] < 0 ? "inverted" : "standard", digits[i], "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Mathf.Abs(digits[i])], dtotals[i], (-Mathf.Abs(digits[i]) + dtotals[i]) % 36, ((-Mathf.Abs(digits[i]) + dtotals[i]) % 36 < 0 ? "inverted " : "standard ") + "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Mathf.Abs((-Mathf.Abs(digits[i]) + dtotals[i]) % 36)]);
+                    Debug.LogFormat("[14 #{0}] At stage {1}, The digit shown on the {2} channel was {3} {5} ({4}). The M function outputs {6} - {4} = {7} ({8})", moduleID, stageCount, "RGB"[i], digits[i] < 0 ? "inverted" : "standard", Mathf.Abs(digits[i]), "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Mathf.Abs(digits[i])], dtotals[i], (-Mathf.Abs(digits[i]) + dtotals[i]) % 36, ((-Mathf.Abs(digits[i]) + dtotals[i]) % 36 < 0 ? "inverted " : "standard ") + "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Mathf.Abs((-Mathf.Abs(digits[i]) + dtotals[i]) % 36)]);
                     dtotals[i] -= Mathf.Abs(digits[i]);
                     dtotals[i] %= 36;
                     break;
@@ -350,6 +387,7 @@ public class FourteenScript : MonoBehaviour
                 segrends[j].material = bcols[segcol[j] + 8];
             }
         }
+        stageDisplay.Add(segcol);
     }
 
     private IEnumerator MoveSubmit()
@@ -387,12 +425,11 @@ public class FourteenScript : MonoBehaviour
     }
 
 #pragma warning disable 414
-    private string TwitchHelpMessage = "!{0} KRGBCMYW [Selects colour] | !{0} 1-14 [Changes segment (in reading order) to selected colour] | !{0} submit | Colouring commands can be chained, separated with spaces e.g. R 1 2 G 12 13";
+    private string TwitchHelpMessage = "!{0} KRGBCMYW [Selects colour] | !{0} 1-14 [Changes segment (in reading order) to selected colour] | !{0} submit | !{0} next [Moves to next display (only following an incorrect submission)] | Colouring commands can be chained, separated with spaces e.g. R 1 2 G 12 13";
 #pragma warning restore 414
     IEnumerator ProcessTwitchCommand(string command)
     {
-
-        if (command.ToLowerInvariant() == "submit")
+        if ((command.ToLowerInvariant() == "submit" && !refresh) || (command.ToLowerInvariant() == "next" && refresh))
         {
             yield return null;
             segs[14].OnInteract();
@@ -425,26 +462,29 @@ public class FourteenScript : MonoBehaviour
 
     private IEnumerator TwitchHandleForcedSolve()
     {
-        if (pressable)
+        if (!moduleSolved)
         {
+            while (!pressable) { yield return true; }
+            while (refresh)
+            {
+                yield return null;
+                segs[14].OnInteract();
+            }
             bool[][] truth = new bool[8][] { new bool[3] { false, false, false }, new bool[3] { false, false, true }, new bool[3] { false, true, false }, new bool[3] { false, true, true }, new bool[3] { true, false, false }, new bool[3] { true, false, true }, new bool[3] { true, true, false }, new bool[3] { true, true, true } };
             for (int i = 0; i < 8; i++)
             {
-                yield return null;
                 selectors[i].OnInteract();
                 yield return new WaitForSeconds(0.1f);
                 for (int j = 0; j < 14; j++)
                 {
-                    if (truth[i][0] == ansDisplay[0][j][0] && truth[i][1] == ansDisplay[0][j][0] && truth[i][2] == ansDisplay[0][j][2])
+                    if (truth[i][0] == ansDisplay[0][j][0] && truth[i][1] == ansDisplay[0][j][1] && truth[i][2] == ansDisplay[0][j][2])
                     {
-                        yield return null;
                         segs[j].OnInteract();
                         yield return new WaitForSeconds(0.1f);
                     }
                 }
             }
-            yield return null;
             segs[14].OnInteract();
-        }
+        }        
     }
 }
