@@ -4179,7 +4179,7 @@ MonoBehaviour:
   - {fileID: 2100000, guid: 3d23e17a33c264b4c98237fce7c7eadc, type: 2}
   - {fileID: 2100000, guid: 7e4ef07942c83c84aa0b0f815d7a9f52, type: 2}
   stagenum: {fileID: 102356140708905738}
-  buttontext: {fileID: 0}
+  buttontext: {fileID: 102356140708905738}
 --- !u!114 &114477686882760872
 MonoBehaviour:
   m_ObjectHideFlags: 1
