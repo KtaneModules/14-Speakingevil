@@ -10,6 +10,7 @@ public class FourteenScript : MonoBehaviour
     public KMAudio Audio;
     public KMBombInfo bomb;
     public KMBossModule boss;
+    public KMColorblindMode ColorblindMode;
 
     public List<KMSelectable> segs;
     public Renderer[] segrends;
@@ -18,6 +19,8 @@ public class FourteenScript : MonoBehaviour
     public Material[] bcols;
     public TextMesh stagenum;
     public TextMesh buttontext;
+    public TextMesh[] cbsegmenttexts;
+    public TextMesh[] cbpickertexts;
 
     private static string[] exempt = null;
     private bool[][] seglist = new bool[36][]{new bool[14] { true, true, false, false, true, true, false, false, true, true, false, false, true, true },     //0
@@ -68,6 +71,7 @@ public class FourteenScript : MonoBehaviour
     private bool[] selection = new bool[3];
     private int selcol = 8;
     private bool refresh;
+    private bool _colorblindMode;
 
     private static int moduleIDCounter = 1;
     private int moduleID;
@@ -76,6 +80,8 @@ public class FourteenScript : MonoBehaviour
     void Awake()
     {
         moduleID = moduleIDCounter++;
+        _colorblindMode = ColorblindMode.ColorblindModeActive;
+        SetColorblindMode(_colorblindMode);
         exempt = GetComponent<KMBossModule>().GetIgnoredModules("14", new string[]
         {
             "Forget Me Not",
@@ -112,13 +118,18 @@ public class FourteenScript : MonoBehaviour
         {
             int s = segs.IndexOf(seg);
             if (s < 14)
+            {
                 segrends[s].material = bcols[8];
+                cbsegmenttexts[s].text = "K";
+                cbsegmenttexts[s].color = new Color(1, 1, 1, 1);
+            }
             seg.OnInteract += delegate () { Press(false, s); return false; };
         }
         foreach (KMSelectable selector in selectors)
         {
             int s = selectors.IndexOf(selector);
             selrends[s].material = bcols[0];
+            cbpickertexts[s].gameObject.SetActive(false);
             selector.OnInteract += delegate () { Press(true, s); return false; };
         }
         GetComponent<KMBombModule>().OnActivate += Activate;
@@ -144,9 +155,18 @@ public class FourteenScript : MonoBehaviour
             else
                 for (int i = 0; i < 3; i++)
                     dtotals[i] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".IndexOf(bomb.GetSerialNumber()[i].ToString());
-            Debug.LogFormat("[14 #{0}] The initial values are: {1}", moduleID, string.Join(", ", dtotals.Select((s, i) => "RGB"[i].ToString() + " = " +  s).ToArray()));
+            Debug.LogFormat("[14 #{0}] The initial values are: {1}", moduleID, string.Join(", ", dtotals.Select((s, i) => "RGB"[i].ToString() + " = " + s).ToArray()));
             GenerateStage();
         }
+    }
+
+    private void SetColorblindMode(bool mode)
+    {
+        foreach (var t in cbpickertexts)
+            if (stageRecount + 1 < stageCount)
+                t.gameObject.SetActive(mode);
+        foreach (var t in cbsegmenttexts)
+            t.gameObject.SetActive(mode);
     }
 
     void Update()
@@ -170,9 +190,16 @@ public class FourteenScript : MonoBehaviour
                         StartCoroutine(MoveSubmit());
                         selrends[8].material = bcols[8];
                         for (int i = 0; i < 14; i++)
+                        {
                             segrends[i].material = bcols[8];
+                            cbsegmenttexts[i].text = "K";
+                            cbsegmenttexts[i].color = new Color(1, 1, 1, 1);
+                        }
                         for (int i = 0; i < 8; i++)
+                        {
                             selrends[i].material = bcols[i];
+                            cbpickertexts[i].gameObject.SetActive(_colorblindMode);
+                        }
                         for (int i = 0; i < 3; i++)
                         {
                             segDisplay[i] = seglist[Mathf.Abs(dtotals[i])];
@@ -215,6 +242,7 @@ public class FourteenScript : MonoBehaviour
     {
         if (pressable && !moduleSolved)
         {
+            SetColorblindMode(_colorblindMode);
             if (sel && !refresh)
             {
                 selectors[s].AddInteractionPunch(0.5f);
@@ -246,6 +274,7 @@ public class FourteenScript : MonoBehaviour
                                     selection = new bool[3] { false, false, false };
                                     buttontext.text = "NE\nXT";
                                     GetComponent<KMBombModule>().HandleStrike();
+                                    SetColorblindMode(false);
                                 }
                             }
                         }
@@ -268,9 +297,14 @@ public class FourteenScript : MonoBehaviour
                                         segcol[j] += (int)Mathf.Pow(2, 2 - i);
                                     }
                                     ansLCDs[j] = "KBGCRMYW"[segcol[j]].ToString();
+                                    cbsegmenttexts[j].text = ansLCDs[j];
+                                    cbsegmenttexts[j].color = ansLCDs[j] == "K" ? new Color(1, 1, 1, 1) : new Color(0, 0, 0, 1);
                                 }
                             for (int i = 0; i < 8; i++)
+                            {
                                 selrends[i].material = bcols[0];
+                                cbpickertexts[i].gameObject.SetActive(false);
+                            }
                             string ansGrid = string.Empty;
                             int lcdIndex = 0;
                             for (int i = 0; i < 25; i++)
@@ -295,9 +329,11 @@ public class FourteenScript : MonoBehaviour
                     Audio.PlaySoundAtTransform("SegSelect" + Random.Range(1, 6).ToString(), transform);
                     ansDisplay[1][s] = selection;
                     segrends[s].material = bcols[selcol];
+                    cbsegmenttexts[s].text = "KBGCRMYW"[selcol - 8].ToString();
+                    cbsegmenttexts[s].color = "KBGCRMYW"[selcol - 8].ToString() == "K" ? new Color(1, 1, 1, 1) : new Color(0, 0, 0, 1);
                 }
             }
-            else if(s == 14 && refresh)
+            else if (s == 14 && refresh)
             {
                 segs[14].AddInteractionPunch(0.5f);
                 Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, transform);
@@ -310,16 +346,27 @@ public class FourteenScript : MonoBehaviour
                     {
                         ansDisplay[1][i] = new bool[3] { false, false, false };
                         segrends[i].material = bcols[8];
+                        cbsegmenttexts[i].text = "K";
+                        cbsegmenttexts[i].color = new Color(1, 1, 1, 1);
                     }
                     for (int i = 0; i < 8; i++)
+                    {
                         selrends[i].material = bcols[i];
+                        cbpickertexts[i].gameObject.SetActive(_colorblindMode);
+                    }
                 }
                 else
                 {
                     stageRecount++;
                     for (int i = 0; i < 14; i++)
+                    {
                         segrends[i].material = bcols[stageDisplay[stageRecount][i] + 8];
-                }               
+                        cbsegmenttexts[i].text = "KBGCRMYW"[stageDisplay[stageRecount][i]].ToString();
+                        cbsegmenttexts[i].color = "KBGCRMYW"[stageDisplay[stageRecount][i]].ToString() == "K" ? new Color(1, 1, 1, 1) : new Color(0, 0, 0, 1);
+                    }
+                    foreach (var t in cbpickertexts)
+                        t.gameObject.SetActive(false);
+                }
             }
         }
     }
@@ -385,6 +432,8 @@ public class FourteenScript : MonoBehaviour
                 if (segDisplay[i][j] ^ digits[i] < 0)
                     segcol[j] += (int)Mathf.Pow(2, 2 - i);
                 segrends[j].material = bcols[segcol[j] + 8];
+                cbsegmenttexts[j].text = "KBGCRMYW"[segcol[j]].ToString();
+                cbsegmenttexts[j].color = "KBGCRMYW"[segcol[j]].ToString() == "K" ? new Color(1, 1, 1, 1) : new Color(0, 0, 0, 1);
             }
         }
         stageDisplay.Add(segcol);
@@ -401,6 +450,7 @@ public class FourteenScript : MonoBehaviour
 
     private IEnumerator SolveAnim()
     {
+        SetColorblindMode(false);
         int[] solved = new int[6] { 28, 24, 21, 31, 14, 13 };
         for (int i = 0; i < 6; i++)
         {
@@ -432,7 +482,15 @@ public class FourteenScript : MonoBehaviour
         if ((command.ToLowerInvariant() == "submit" && !refresh) || (command.ToLowerInvariant() == "next" && refresh))
         {
             yield return null;
+            yield return "solve";
+            yield return "strike";
             segs[14].OnInteract();
+        }
+        else if (command.ToLowerInvariant() == "colorblind" || command.ToLowerInvariant() == "colourblind" || command.ToLowerInvariant() == "cb")
+        {
+            yield return null;
+            _colorblindMode = !_colorblindMode;
+            SetColorblindMode(_colorblindMode);
         }
         else
         {
@@ -462,29 +520,30 @@ public class FourteenScript : MonoBehaviour
 
     private IEnumerator TwitchHandleForcedSolve()
     {
-        if (!moduleSolved)
+        if (moduleSolved)
+            yield break;
+        while (!pressable) { yield return true; }
+        while (refresh)
         {
-            while (!pressable) { yield return true; }
-            while (refresh)
+            yield return null;
+            segs[14].OnInteract();
+        }
+        bool[][] truth = new bool[8][] { new bool[3] { false, false, false }, new bool[3] { false, false, true }, new bool[3] { false, true, false }, new bool[3] { false, true, true }, new bool[3] { true, false, false }, new bool[3] { true, false, true }, new bool[3] { true, true, false }, new bool[3] { true, true, true } };
+        for (int i = 0; i < 8; i++)
+        {
+            selectors[i].OnInteract();
+            yield return new WaitForSeconds(0.1f);
+            for (int j = 0; j < 14; j++)
             {
-                yield return null;
-                segs[14].OnInteract();
-            }
-            bool[][] truth = new bool[8][] { new bool[3] { false, false, false }, new bool[3] { false, false, true }, new bool[3] { false, true, false }, new bool[3] { false, true, true }, new bool[3] { true, false, false }, new bool[3] { true, false, true }, new bool[3] { true, true, false }, new bool[3] { true, true, true } };
-            for (int i = 0; i < 8; i++)
-            {
-                selectors[i].OnInteract();
-                yield return new WaitForSeconds(0.1f);
-                for (int j = 0; j < 14; j++)
+                if (truth[i][0] == ansDisplay[0][j][0] && truth[i][1] == ansDisplay[0][j][1] && truth[i][2] == ansDisplay[0][j][2])
                 {
-                    if (truth[i][0] == ansDisplay[0][j][0] && truth[i][1] == ansDisplay[0][j][1] && truth[i][2] == ansDisplay[0][j][2])
-                    {
-                        segs[j].OnInteract();
-                        yield return new WaitForSeconds(0.1f);
-                    }
+                    segs[j].OnInteract();
+                    yield return new WaitForSeconds(0.1f);
                 }
             }
-            segs[14].OnInteract();
-        }        
+        }
+        segs[14].OnInteract();
+        while (!moduleSolved)
+            yield return true;
     }
 }
