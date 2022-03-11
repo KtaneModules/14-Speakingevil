@@ -72,6 +72,7 @@ public class FourteenScript : MonoBehaviour
     private int selcol = 8;
     private bool refresh;
     private bool _colorblindMode;
+    private bool isSolving;
 
     private static int moduleIDCounter = 1;
     private int moduleID;
@@ -143,10 +144,7 @@ public class FourteenScript : MonoBehaviour
     private void Activate()
     {
         if (bomb.GetSolvableModuleNames().Where(x => !exempt.Contains(x)).Count() == 0)
-        {
-            moduleSolved = true;
             StartCoroutine(SolveAnim());
-        }
         else
         {
             if (bomb.GetIndicators().Count() == 1)
@@ -240,7 +238,7 @@ public class FourteenScript : MonoBehaviour
 
     private void Press(bool sel, int s)
     {
-        if (pressable && !moduleSolved)
+        if (pressable && !moduleSolved && !isSolving)
         {
             SetColorblindMode(_colorblindMode);
             if (sel && !refresh)
@@ -281,7 +279,6 @@ public class FourteenScript : MonoBehaviour
                         if (!struck)
                         {
                             Audio.PlaySoundAtTransform("InputCorrect", transform);
-                            moduleSolved = true;
                             selrends[8].material = bcols[8];
                             StartCoroutine(SolveAnim());
                         }
@@ -450,6 +447,7 @@ public class FourteenScript : MonoBehaviour
 
     private IEnumerator SolveAnim()
     {
+        isSolving = true;
         SetColorblindMode(false);
         int[] solved = new int[6] { 28, 24, 21, 31, 14, 13 };
         for (int i = 0; i < 6; i++)
@@ -471,6 +469,7 @@ public class FourteenScript : MonoBehaviour
         for (int i = 0; i < 14; i++)
             segrends[i].material = bcols[8];
         Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.CorrectChime, transform);
+        moduleSolved = true;
         GetComponent<KMBombModule>().HandlePass();
     }
 
@@ -479,7 +478,16 @@ public class FourteenScript : MonoBehaviour
 #pragma warning restore 414
     IEnumerator ProcessTwitchCommand(string command)
     {
-        if ((command.ToLowerInvariant() == "submit" && !refresh) || (command.ToLowerInvariant() == "next" && refresh))
+        if (command.ToLowerInvariant() == "skip" && refresh)
+        {
+            yield return null;
+            while (refresh)
+            {
+                segs[14].OnInteract();
+                yield return new WaitForSeconds(0.05f);
+            }
+        }
+        else if ((command.ToLowerInvariant() == "submit" && !refresh) || (command.ToLowerInvariant() == "next" && refresh))
         {
             yield return null;
             yield return "solve";
